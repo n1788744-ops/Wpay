@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Neon Runner 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#070912;color:#fff;font-family:system-ui,-apple-system,sans-serif;}
+  canvas{display:block;width:100%;height:100%;touch-action:none;}
+  .hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;}
+  .pill{background:rgba(10,14,26,0.78);border:1px solid rgba(0,229,163,0.45);padding:8px 12px;border-radius:12px;font-size:12px;}
+  .pill strong{color:#00e5a3;font-family:monospace;font-size:14px;}
+  .controls{position:fixed;bottom:18px;left:16px;right:16px;display:flex;justify-content:space-between;}
+  .btn{width:76px;height:68px;border-radius:18px;background:rgba(18,24,40,0.78);border:2px solid rgba(61,155,255,0.55);color:#fff;font-size:16px;font-weight:700;touch-action:none;}
+  .btn:active{background:rgba(0,119,255,0.7);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="pill">
+    <div id="gTitle" style="font-weight:700;margin-bottom:2px;">3D Cyber Runner</div>
+    <div>СЧЁТ: <strong id="scr">0</strong> &nbsp;|&nbsp; РЕКОРД: <strong id="best">0</strong></div>
+  </div>
+  <div class="pill" style="text-align:right;">
+    <div>FPS: <strong id="fps">60</strong></div>
+    <div style="color:#94a3b8;font-size:11px;">WebGL/Canvas 3D</div>
+  </div>
+</div>
+<div class="controls">
+  <div style="display:flex;gap:10px;">
+    <button class="btn" id="lBtn">&#9664;</button>
+    <button class="btn" id="rBtn">&#9654;</button>
+  </div>
+  <button class="btn" id="jBtn" style="width:104px;border-color:#00e5a3;">ПРЫЖОК</button>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+document.getElementById('gTitle').textContent = params.get('title') || 'Неоновый Паркур 3D';
+const accent = params.get('accent') || '#0077FF';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W=0,H=0;
+function resize(){ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+let lane = 0, targetLane = 0, jumpY = 0, jumpV = 0, score = 0, best = 0, speed = 520, gridZ = 0;
+const items = Array.from({length: 10}, (_, i) => ({
+  lane: Math.floor(Math.random()*3)-1,
+  z: 350 + i * 170,
+  orb: i % 3 === 0
+}));
+
+document.getElementById('lBtn').addEventListener('touchstart', e=>{e.preventDefault(); targetLane=Math.max(-1,targetLane-1);},{passive:false});
+document.getElementById('rBtn').addEventListener('touchstart', e=>{e.preventDefault(); targetLane=Math.min(1,targetLane+1);},{passive:false});
+document.getElementById('jBtn').addEventListener('touchstart', e=>{e.preventDefault(); if(jumpY===0) jumpV=460;},{passive:false});
+document.getElementById('lBtn').addEventListener('mousedown', ()=>targetLane=Math.max(-1,targetLane-1));
+document.getElementById('rBtn').addEventListener('mousedown', ()=>targetLane=Math.min(1,targetLane+1));
+document.getElementById('jBtn').addEventListener('mousedown', ()=>{if(jumpY===0) jumpV=460;});
+
+let last=performance.now(), frames=0, fpsTimer=0;
+function loop(now){
+  const dt = Math.min(0.05,(now-last)/1000); last=now;
+  frames++; fpsTimer+=dt;
+  if(fpsTimer>=0.4){ document.getElementById('fps').textContent=Math.round(frames/fpsTimer); frames=0; fpsTimer=0; }
+
+  lane += (targetLane - lane)*dt*12;
+  if(jumpY > 0 || jumpV > 0){
+    jumpY += jumpV * dt; jumpV -= 1200 * dt;
+    if(jumpY <= 0){ jumpY = 0; jumpV = 0; }
+  }
+  gridZ = (gridZ + speed*dt) % 80;
+  score += Math.round(dt*65);
+  if(score > best) best = score;
+
+  const hor = H*0.42;
+  ctx.fillStyle = '#060812'; ctx.fillRect(0,0,W,H);
+
+  // 3D perspective track lines
+  ctx.strokeStyle = accent; ctx.lineWidth = 2;
+  [-1.5,-0.5,0.5,1.5].forEach(l => {
+    ctx.beginPath(); ctx.moveTo(W*0.5 + l*24, hor); ctx.lineTo(W*0.5 + l*W*0.26, H); ctx.stroke();
+  });
+  for(let z=60; z<1000; z+=80){
+    const p = 180 / (z - gridZ + 40);
+    const y = hor + p * (H - hor) * 0.45;
+    if(y > hor && y < H){
+      ctx.strokeStyle = 'rgba(0,229,163,0.28)';
+      ctx.beginPath(); ctx.moveTo(W*0.5 - p*W*0.4, y); ctx.lineTo(W*0.5 + p*W*0.4, y); ctx.stroke();
+    }
+  }
+
+  // 3D Cubes & Orbs
+  items.sort((a,b)=>b.z-a.z).forEach(it => {
+    it.z -= speed*dt;
+    if(it.z < 45){
+      if(Math.abs(it.lane - lane) < 0.45){
+        if(it.orb){ score += 150; }
+        else if(jumpY < 32){ score = 0; }
+      }
+      it.z = 1600 + Math.random()*250;
+      it.lane = Math.floor(Math.random()*3)-1;
+    }
+    const p = 180 / it.z;
+    const y = hor + p * (H - hor) * 0.45;
+    const x = W*0.5 + it.lane * p * W * 0.22;
+    const sz = 46 * p;
+    if(it.orb){
+      ctx.fillStyle = '#00e5a3'; ctx.beginPath(); ctx.arc(x, y - sz*0.7, sz*0.45, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#ff3b6b'; ctx.fillRect(x - sz/2, y - sz, sz, sz);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x - sz/2, y - sz, sz, sz);
+    }
+  });
+
+  // Player 3D cube
+  const px = W*0.5 + lane * W * 0.2;
+  const py = H*0.82 - jumpY;
+  ctx.fillStyle = '#00e5a3'; ctx.fillRect(px-24, py-48, 48, 48);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(px-24, py-48, 48, 48);
+
+  document.getElementById('scr').textContent = score;
+  document.getElementById('best').textContent = best;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

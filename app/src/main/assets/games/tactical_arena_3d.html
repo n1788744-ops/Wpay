@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Tactical Arena 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#080b14;color:#fff;font-family:system-ui,-apple-system,sans-serif;}
+  canvas{display:block;width:100%;height:100%;touch-action:none;}
+  .hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;}
+  .pill{background:rgba(10,14,26,0.8);border:1px solid rgba(123,97,255,0.5);padding:8px 12px;border-radius:12px;font-size:12px;}
+  .pill strong{color:#00e5a3;font-family:monospace;font-size:14px;}
+  .spell{position:fixed;bottom:20px;right:18px;padding:18px 22px;border-radius:18px;background:rgba(123,97,255,0.45);border:2px solid #00e5a3;color:#fff;font-weight:700;font-size:13px;touch-action:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="pill">
+    <div id="gTitle" style="font-weight:700;margin-bottom:2px;">3D RPG Arena</div>
+    <div>УРОВЕНЬ: <strong id="lvl">1</strong> &nbsp;|&nbsp; ОПЫТ: <strong id="scr">0</strong></div>
+  </div>
+  <div class="pill" style="text-align:right;">
+    <div>FPS: <strong id="fps">60</strong></div>
+    <div style="color:#94a3b8;font-size:11px;">Изометрия 3D</div>
+  </div>
+</div>
+<button class="spell" id="nova">ИМПУЛЬС</button>
+<script>
+const params = new URLSearchParams(location.search);
+document.getElementById('gTitle').textContent = params.get('title') || 'Цитадель Дракона 3D';
+const accent = params.get('accent') || '#7B61FF';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W=0,H=0;
+function resize(){ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+let hero = {x:0, y:0, tx:0, ty:0}, score=0, lvl=1, novaR=0;
+const foes = Array.from({length: 8}, () => ({x:(Math.random()-0.5)*9, y:(Math.random()-0.5)*9, hp:2}));
+const bolts = [];
+
+function iso(x,y,z=0){
+  return {
+    x: W*0.5 + (x - y) * 34,
+    y: H*0.52 + (x + y) * 18 - z
+  };
+}
+canvas.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  const dx = (t.clientX - W*0.5)/34, dy = (t.clientY - H*0.52)/18;
+  hero.tx = Math.max(-6, Math.min(6, (dx + dy)*0.5));
+  hero.ty = Math.max(-6, Math.min(6, (dy - dx)*0.5));
+});
+document.getElementById('nova').addEventListener('touchstart', e => {
+  e.preventDefault(); novaR = 1;
+  foes.forEach(f => {
+    if(Math.hypot(f.x-hero.x, f.y-hero.y) < 3.6){
+      score += 80; f.x=(Math.random()-0.5)*10; f.y=(Math.random()-0.5)*10;
+    }
+  });
+});
+
+let shotCd = 0, last = performance.now(), frames=0, fpsTimer=0;
+function loop(now){
+  const dt = Math.min(0.05, (now-last)/1000); last=now;
+  frames++; fpsTimer+=dt;
+  if(fpsTimer>=0.4){ document.getElementById('fps').textContent=Math.round(frames/fpsTimer); frames=0; fpsTimer=0; }
+
+  hero.x += (hero.tx - hero.x)*dt*4;
+  hero.y += (hero.ty - hero.y)*dt*4;
+  if(novaR > 0){ novaR += dt*6; if(novaR > 4) novaR = 0; }
+
+  ctx.fillStyle = '#070a14'; ctx.fillRect(0,0,W,H);
+
+  // 3D Isometric Tile Grid
+  for(let gx=-6; gx<=6; gx++) for(let gy=-6; gy<=6; gy++){
+    const p1 = iso(gx, gy), p2 = iso(gx+1, gy), p3 = iso(gx+1, gy+1), p4 = iso(gx, gy+1);
+    ctx.strokeStyle = 'rgba(0,119,255,0.22)';
+    ctx.fillStyle = (gx+gy)%2===0 ? '#0d1326' : '#101830';
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Auto-bolt nearest foe
+  shotCd -= dt;
+  if(shotCd <= 0 && foes.length){
+    shotCd = 0.42;
+    let best = foes[0], bd = 999;
+    foes.forEach(f => { const d = Math.hypot(f.x-hero.x, f.y-hero.y); if(d < bd){ bd=d; best=f; } });
+    const ang = Math.atan2(best.y-hero.y, best.x-hero.x);
+    bolts.push({x:hero.x, y:hero.y, vx:Math.cos(ang)*9, vy:Math.sin(ang)*9});
+  }
+
+  for(let i=bolts.length-1;i>=0;i--){
+    const b = bolts[i];
+    b.x += b.vx*dt; b.y += b.vy*dt;
+    const p = iso(b.x, b.y, 18);
+    ctx.fillStyle = '#00e5a3'; ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill();
+    foes.forEach(f => {
+      if(Math.hypot(f.x-b.x, f.y-b.y) < 0.65){
+        score += 50; lvl = 1 + Math.floor(score/400);
+        f.x=(Math.random()-0.5)*11; f.y=(Math.random()-0.5)*11;
+      }
+    });
+    if(Math.abs(b.x)>8||Math.abs(b.y)>8) bolts.splice(i,1);
+  }
+
+  // Draw 3D isometric enemy prisms
+  foes.forEach(f => {
+    const ang = Math.atan2(hero.y-f.y, hero.x-f.x);
+    f.x += Math.cos(ang)*dt*1.1; f.y += Math.sin(ang)*dt*1.1;
+    if(Math.hypot(f.x-hero.x, f.y-hero.y) < 0.55){
+      f.x=(Math.random()-0.5)*11; f.y=(Math.random()-0.5)*11;
+    }
+    const base = iso(f.x, f.y, 0), top = iso(f.x, f.y, 28);
+    ctx.fillStyle = '#ff3b6b'; ctx.fillRect(top.x-10, top.y, 20, base.y-top.y);
+    ctx.fillStyle = '#ff7b9c'; ctx.beginPath(); ctx.arc(top.x, top.y, 10, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Hero 3D prism
+  const hb = iso(hero.x, hero.y, 0), ht = iso(hero.x, hero.y, 38);
+  if(novaR > 0){
+    ctx.strokeStyle = 'rgba(0,229,163,0.7)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(hb.x, hb.y, novaR*38, novaR*20, 0, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.fillStyle = accent; ctx.fillRect(ht.x-12, ht.y, 24, hb.y-ht.y);
+  ctx.fillStyle = '#00e5a3'; ctx.beginPath(); ctx.arc(ht.x, ht.y, 12, 0, Math.PI*2); ctx.fill();
+
+  document.getElementById('lvl').textContent = lvl;
+  document.getElementById('scr').textContent = score;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

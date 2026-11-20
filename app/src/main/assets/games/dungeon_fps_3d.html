@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Raycaster FPS 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#080a10;color:#fff;font-family:system-ui,-apple-system,sans-serif;}
+  canvas{display:block;width:100%;height:100%;}
+  .hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;z-index:10;}
+  .pill{background:rgba(10,14,26,0.78);border:1px solid rgba(0,119,255,0.45);padding:8px 12px;border-radius:12px;font-size:12px;}
+  .pill strong{color:#00e5a3;font-family:monospace;font-size:14px;}
+  .controls{position:fixed;bottom:16px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-end;z-index:10;}
+  .pad{display:grid;grid-template-columns:56px 56px 56px;grid-template-rows:56px 56px;gap:6px;}
+  .btn{border-radius:14px;background:rgba(18,24,40,0.76);border:1.5px solid rgba(61,155,255,0.55);color:#fff;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;touch-action:none;}
+  .btn:active{background:rgba(0,119,255,0.7);}
+  .fire{width:84px;height:84px;border-radius:50%;background:rgba(255,59,107,0.35);border:2px solid #ff3b6b;color:#fff;font-weight:700;font-size:13px;touch-action:none;}
+  .fire:active{background:rgba(255,59,107,0.75);transform:scale(0.94);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="pill">
+    <div id="gTitle" style="font-weight:700;margin-bottom:2px;">3D Tactical FPS</div>
+    <div>ЦЕЛИ: <strong id="scr">0</strong> &nbsp;|&nbsp; БРОНЯ: <strong>100</strong></div>
+  </div>
+  <div class="pill" style="text-align:right;">
+    <div>FPS: <strong id="fps">60</strong></div>
+    <div style="color:#94a3b8;font-size:11px;">Raycaster 3D • RTX</div>
+  </div>
+</div>
+<div class="controls">
+  <div class="pad">
+    <div></div><button class="btn" id="up">&#9650;</button><div></div>
+    <button class="btn" id="left">&#9664;</button><button class="btn" id="down">&#9660;</button><button class="btn" id="right">&#9654;</button>
+  </div>
+  <button class="fire" id="fire">ОГОНЬ</button>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+document.getElementById('gTitle').textContent = params.get('title') || 'Сталь и Пепел 3D';
+const accent = params.get('accent') || '#0077FF';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W=0,H=0;
+function resize(){ W = canvas.width = Math.floor(window.innerWidth*0.6); H = canvas.height = Math.floor(window.innerHeight*0.6); }
+window.addEventListener('resize', resize); resize();
+
+const map = [
+  [1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,2,0,0,0,0,1],
+  [1,0,2,0,0,0,1,1,0,1],
+  [1,0,0,0,0,0,0,2,0,1],
+  [1,2,0,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,2,0,0,1],
+  [1,0,1,0,2,0,0,0,0,1],
+  [1,0,0,0,0,0,0,1,0,1],
+  [1,1,1,1,1,1,1,1,1,1]
+];
+let px=1.5, py=1.5, pa=0.4, score=0, flash=0;
+const targets = [{x:5.5,y:1.5},{x:7.5,y:5.5},{x:3.5,y:7.5},{x:8.2,y:2.5}];
+const keys = {u:false,d:false,l:false,r:false};
+function bind(id,k){
+  const el=document.getElementById(id);
+  el.addEventListener('touchstart',e=>{e.preventDefault();keys[k]=true;},{passive:false});
+  el.addEventListener('touchend',e=>{e.preventDefault();keys[k]=false;},{passive:false});
+  el.addEventListener('mousedown',()=>keys[k]=true); el.addEventListener('mouseup',()=>keys[k]=false);
+}
+bind('up','u'); bind('down','d'); bind('left','l'); bind('right','r');
+
+function shoot(){
+  flash = 1;
+  for(let i=targets.length-1;i>=0;i--){
+    const t = targets[i];
+    const dx = t.x - px, dy = t.y - py;
+    const dist = Math.hypot(dx, dy);
+    let ang = Math.atan2(dy, dx) - pa;
+    while(ang > Math.PI) ang -= Math.PI*2;
+    while(ang < -Math.PI) ang += Math.PI*2;
+    if(Math.abs(ang) < 0.22 && dist < 7){
+      score += 150;
+      t.x = 1.5 + Math.floor(Math.random()*7);
+      t.y = 1.5 + Math.floor(Math.random()*6);
+      while(map[Math.floor(t.y)][Math.floor(t.x)] !== 0){
+        t.x = 1.5 + Math.floor(Math.random()*7);
+        t.y = 1.5 + Math.floor(Math.random()*6);
+      }
+      break;
+    }
+  }
+}
+document.getElementById('fire').addEventListener('touchstart',e=>{e.preventDefault();shoot();},{passive:false});
+document.getElementById('fire').addEventListener('mousedown',shoot);
+
+let last=performance.now(), frames=0, fpsTimer=0;
+function loop(now){
+  const dt = Math.min(0.05,(now-last)/1000); last=now;
+  frames++; fpsTimer+=dt;
+  if(fpsTimer>=0.4){ document.getElementById('fps').textContent=Math.round(frames/fpsTimer); frames=0; fpsTimer=0; }
+
+  if(keys.l) pa -= dt*2.3;
+  if(keys.r) pa += dt*2.3;
+  const spd = (keys.u?1:0) - (keys.d?1:0);
+  if(spd !== 0){
+    const nx = px + Math.cos(pa)*spd*dt*2.8;
+    const ny = py + Math.sin(pa)*spd*dt*2.8;
+    if(map[Math.floor(py)][Math.floor(nx)] === 0) px = nx;
+    if(map[Math.floor(ny)][Math.floor(px)] === 0) py = ny;
+  }
+  if(flash > 0) flash -= dt*6;
+
+  // Ceiling & Floor
+  const cg = ctx.createLinearGradient(0,0,0,H/2); cg.addColorStop(0,'#050814'); cg.addColorStop(1,'#101933');
+  ctx.fillStyle = cg; ctx.fillRect(0,0,W,H/2);
+  const fg = ctx.createLinearGradient(0,H/2,0,H); fg.addColorStop(0,'#0b0f1c'); fg.addColorStop(1,'#18223d');
+  ctx.fillStyle = fg; ctx.fillRect(0,H/2,W,H/2);
+
+  // Raycast 3D walls
+  const fov = 1.05, cols = W;
+  const zBuf = new Float32Array(cols);
+  for(let x=0;x<cols;x++){
+    const rayAng = pa - fov/2 + (x/cols)*fov;
+    const rx = Math.cos(rayAng), ry = Math.sin(rayAng);
+    let dist = 0, hit = 0;
+    while(dist < 14){
+      dist += 0.04;
+      const mx = Math.floor(px + rx*dist);
+      const my = Math.floor(py + ry*dist);
+      if(map[my] && map[my][mx] > 0){ hit = map[my][mx]; break; }
+    }
+    const corr = dist * Math.cos(rayAng - pa);
+    zBuf[x] = corr;
+    const wh = Math.min(H*1.5, H / Math.max(0.15, corr));
+    const shade = Math.max(0.18, 1 - corr / 11);
+    ctx.fillStyle = hit === 2
+      ? `rgb(${Math.round(0*shade)},${Math.round(145*shade)},${Math.round(255*shade)})`
+      : `rgb(${Math.round(35*shade)},${Math.round(52*shade)},${Math.round(92*shade)})`;
+    ctx.fillRect(x, H/2 - wh/2, 1.5, wh);
+  }
+
+  // Draw 3D target drones
+  targets.forEach(t => {
+    const dx = t.x - px, dy = t.y - py;
+    const dist = Math.hypot(dx, dy);
+    let ang = Math.atan2(dy, dx) - pa;
+    while(ang > Math.PI) ang -= Math.PI*2;
+    while(ang < -Math.PI) ang += Math.PI*2;
+    if(Math.abs(ang) < fov*0.7){
+      const sx = Math.floor((0.5 + ang/fov)*W);
+      if(sx >= 0 && sx < cols && dist < zBuf[sx]){
+        const sz = Math.min(H*0.6, (H*0.55)/Math.max(0.2,dist));
+        ctx.fillStyle = '#ff3b6b';
+        ctx.fillRect(sx - sz*0.35, H/2 - sz*0.35, sz*0.7, sz*0.7);
+        ctx.fillStyle = '#00e5a3';
+        ctx.fillRect(sx - sz*0.15, H/2 - sz*0.15, sz*0.3, sz*0.3);
+      }
+    }
+  });
+
+  // Crosshair & weapon
+  ctx.strokeStyle = '#00e5a3'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(W/2, H/2, 9, 0, Math.PI*2); ctx.stroke();
+  if(flash > 0){
+    ctx.fillStyle = `rgba(0,229,163,${flash*0.5})`;
+    ctx.beginPath(); ctx.arc(W/2, H*0.8, 35, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle = '#1b243b';
+  ctx.fillRect(W/2 - 14, H*0.78, 28, H*0.24);
+  ctx.fillStyle = accent;
+  ctx.fillRect(W/2 - 4, H*0.78, 8, H*0.16);
+
+  // Minimap
+  const ms = 7;
+  for(let y=0;y<map.length;y++) for(let x=0;x<map[0].length;x++){
+    ctx.fillStyle = map[y][x] ? 'rgba(0,119,255,0.6)' : 'rgba(10,14,26,0.5)';
+    ctx.fillRect(10+x*ms, 56+y*ms, ms-1, ms-1);
+  }
+  ctx.fillStyle = '#00e5a3'; ctx.fillRect(10+px*ms-2, 56+py*ms-2, 4, 4);
+
+  document.getElementById('scr').textContent = score;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

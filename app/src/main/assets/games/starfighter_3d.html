@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Starfighter 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#04060e;color:#f4f7fc;font-family:system-ui,-apple-system,sans-serif;}
+  canvas{display:block;width:100%;height:100%;touch-action:none;}
+  .hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;z-index:10;}
+  .pill{background:rgba(10,14,26,0.78);border:1px solid rgba(0,229,163,0.45);padding:8px 12px;border-radius:12px;font-size:12px;}
+  .pill strong{color:#00e5a3;font-family:monospace;font-size:14px;}
+  .fire-btn{position:fixed;bottom:22px;right:20px;width:88px;height:88px;border-radius:50%;background:rgba(0,119,255,0.35);border:2px solid #00e5a3;color:#fff;font-weight:700;font-size:13px;z-index:10;touch-action:none;}
+  .fire-btn:active{background:rgba(0,229,163,0.5);transform:scale(0.94);}
+  .tip{position:fixed;bottom:26px;left:16px;font-size:11px;color:#94a3b8;background:rgba(10,14,26,0.65);padding:6px 10px;border-radius:10px;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="pill">
+    <div id="gTitle" style="font-weight:700;margin-bottom:2px;">3D Starfighter</div>
+    <div>ВОЛНА: <strong id="wave">1</strong> &nbsp;|&nbsp; СЧЁТ: <strong id="scr">0</strong> &nbsp;|&nbsp; ЩИТ: <strong id="hp">100%</strong></div>
+  </div>
+  <div class="pill" style="text-align:right;">
+    <div>FPS: <strong id="fps">60</strong></div>
+    <div style="color:#94a3b8;font-size:11px;">Ryzen 9 5900X • 3D</div>
+  </div>
+</div>
+<div class="tip">Водите пальцем по экрану для прицела</div>
+<button class="fire-btn" id="fireBtn">ОГОНЬ</button>
+<script>
+const params = new URLSearchParams(location.search);
+document.getElementById('gTitle').textContent = params.get('title') || 'Астральный Рубеж 3D';
+const accent = params.get('accent') || '#0077FF';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+let aimX = 0, aimY = 0, firing = true, score = 0, wave = 1, shield = 100;
+const stars = Array.from({length: 120}, () => ({x:(Math.random()-0.5)*2, y:(Math.random()-0.5)*2, z:Math.random()*1200+50}));
+const enemies = [];
+const lasers = [];
+const particles = [];
+
+function spawnEnemy(){
+  enemies.push({
+    x: (Math.random()-0.5)*1.4,
+    y: (Math.random()-0.5)*0.9,
+    z: 1000 + Math.random()*400,
+    hp: 2 + Math.floor(wave/3),
+    type: Math.random() > 0.4 ? 'fighter' : 'core'
+  });
+}
+for(let i=0;i<7;i++) spawnEnemy();
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  aimX = ((t.clientX / W) - 0.5) * 1.4;
+  aimY = ((t.clientY / H) - 0.5) * 1.2;
+}, {passive:false});
+canvas.addEventListener('mousemove', e => {
+  if(e.buttons){ aimX = ((e.clientX/W)-0.5)*1.4; aimY = ((e.clientY/H)-0.5)*1.2; }
+});
+const fb = document.getElementById('fireBtn');
+fb.addEventListener('touchstart', e=>{e.preventDefault(); firing=true;});
+fb.addEventListener('mousedown', ()=>firing=true);
+
+let fireCd = 0, last = performance.now(), frames = 0, fpsTimer = 0;
+function loop(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  frames++; fpsTimer += dt;
+  if(fpsTimer >= 0.4){
+    document.getElementById('fps').textContent = Math.round(frames/fpsTimer);
+    frames = 0; fpsTimer = 0;
+  }
+
+  ctx.fillStyle = '#04060e';
+  ctx.fillRect(0,0,W,H);
+
+  // 3D Starfield
+  stars.forEach(s => {
+    s.z -= dt * (280 + wave*30);
+    if(s.z < 10){ s.z = 1200; s.x = (Math.random()-0.5)*2; s.y = (Math.random()-0.5)*2; }
+    const p = 320 / s.z;
+    const sx = W*0.5 + (s.x - aimX*0.25) * W * 0.5 * p;
+    const sy = H*0.5 + (s.y - aimY*0.25) * H * 0.5 * p;
+    const sz = Math.max(1, p * 2.2);
+    ctx.fillStyle = `rgba(180,220,255,${Math.min(1, p*0.9)})`;
+    ctx.fillRect(sx, sy, sz, sz);
+  });
+
+  // Auto / active lasers
+  fireCd -= dt;
+  if(firing && fireCd <= 0){
+    fireCd = 0.14;
+    lasers.push({x: aimX - 0.12, y: aimY + 0.15, tx: aimX, ty: aimY, z: 40});
+    lasers.push({x: aimX + 0.12, y: aimY + 0.15, tx: aimX, ty: aimY, z: 40});
+  }
+
+  // Update lasers
+  for(let i=lasers.length-1;i>=0;i--){
+    const l = lasers[i];
+    l.z += dt * 1650;
+    l.x += (l.tx - l.x) * dt * 8;
+    l.y += (l.ty - l.y) * dt * 8;
+    const p = 360 / l.z;
+    const sx = W*0.5 + (l.x - aimX*0.2) * W * 0.5 * p;
+    const sy = H*0.5 + (l.y - aimY*0.2) * H * 0.5 * p;
+    ctx.strokeStyle = '#00e5a3';
+    ctx.lineWidth = Math.max(2, p * 3.5);
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + 14*p); ctx.stroke();
+    if(l.z > 1250) lasers.splice(i,1);
+  }
+
+  // Update 3D enemies
+  enemies.sort((a,b)=>b.z-a.z);
+  for(let i=enemies.length-1;i>=0;i--){
+    const en = enemies[i];
+    en.z -= dt * (150 + wave*22);
+    const p = 360 / Math.max(20, en.z);
+    const sx = W*0.5 + (en.x - aimX*0.25) * W * 0.55 * p;
+    const sy = H*0.5 + (en.y - aimY*0.25) * H * 0.55 * p;
+    const rad = Math.max(8, 38 * p);
+
+    // Hit test with lasers
+    let killed = false;
+    for(let j=lasers.length-1;j>=0;j--){
+      const l = lasers[j];
+      if(Math.abs(l.z - en.z) < 110 && Math.hypot(l.x - en.x, l.y - en.y) < 0.22){
+        lasers.splice(j,1);
+        en.hp--;
+        if(en.hp <= 0){
+          killed = true;
+          score += 100 * wave;
+          if(score > wave * 1200) wave++;
+          for(let k=0;k<12;k++) particles.push({x:sx,y:sy,vx:(Math.random()-0.5)*260,vy:(Math.random()-0.5)*260,life:0.5});
+          enemies.splice(i,1); spawnEnemy();
+          break;
+        }
+      }
+    }
+    if(killed) continue;
+
+    if(en.z < 50){
+      shield = Math.max(0, shield - 12);
+      if(shield === 0){ shield = 100; score = 0; wave = 1; }
+      enemies.splice(i,1); spawnEnemy(); continue;
+    }
+
+    // Draw 3D wireframe + shaded craft
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.strokeStyle = en.type==='fighter' ? '#ff4d6d' : '#7b61ff';
+    ctx.fillStyle = 'rgba(20,16,42,0.75)';
+    ctx.lineWidth = Math.max(1.5, p*2.5);
+    ctx.beginPath();
+    ctx.moveTo(0, -rad*0.7); ctx.lineTo(rad, 0); ctx.lineTo(0, rad*0.7); ctx.lineTo(-rad, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#00e5a3';
+    ctx.beginPath(); ctx.arc(0,0,rad*0.28,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const pt = particles[i];
+    pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.life -= dt;
+    ctx.fillStyle = `rgba(0,229,163,${pt.life*2})`;
+    ctx.fillRect(pt.x, pt.y, 4, 4);
+    if(pt.life <= 0) particles.splice(i,1);
+  }
+
+  // 3D Cockpit Reticle
+  const rx = W*0.5 + aimX * W * 0.32;
+  const ry = H*0.5 + aimY * H * 0.32;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(rx, ry, 24, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rx-32,ry); ctx.lineTo(rx-14,ry); ctx.moveTo(rx+14,ry); ctx.lineTo(rx+32,ry);
+  ctx.moveTo(rx,ry-32); ctx.lineTo(rx,ry-14); ctx.moveTo(rx,ry+14); ctx.lineTo(rx,ry+32); ctx.stroke();
+
+  document.getElementById('wave').textContent = wave;
+  document.getElementById('scr').textContent = score;
+  document.getElementById('hp').textContent = shield + '%';
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

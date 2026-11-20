@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">CloudPlay 3D</string>
+    <string name="nav_catalog">Каталог</string>
+    <string name="nav_popular_3d">Топ 3D</string>
+    <string name="nav_library">Моё</string>
+    <string name="nav_rig">Сервер</string>
+    <string name="search_placeholder">Поиск среди 160+ игр и жанров…</string>
+    <string name="action_play_now">Играть в браузере</string>
+    <string name="action_open_external_browser">Открыть во внешнем браузере</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_favorite_add">Добавить в избранное</string>
+    <string name="action_favorite_remove">Убрать из избранного</string>
+    <string name="action_ping_test">Замер задержки</string>
+    <string name="rig_cpu_title">Процессор</string>
+    <string name="rig_cpu_value">AMD Ryzen 9 5900X 12-Core Processor</string>
+    <string name="rig_gpu_title">Видеокарта</string>
+    <string name="rig_gpu_value">NVIDIA GeForce RTX 4070 SUPER 11999 Mb</string>
+    <string name="rig_ram_title">Оперативная память</string>
+    <string name="rig_ram_value">32 Gb для плавного воспроизведения контента</string>
+</resources>

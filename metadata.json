@@ -1,0 +1,6 @@
+{
+  "name": "CloudPlay 3D",
+  "description": "Облачный гейминг с каталогом более 150 популярных 3D-игр и мгновенным запуском в браузере без скачивания",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

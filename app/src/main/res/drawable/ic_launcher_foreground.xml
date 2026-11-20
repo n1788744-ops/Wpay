@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bold Cloud Silhouette inside 66dp safe zone (21..87) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,72 C26.8,72 21,66.2 21,59 C21,52.5 25.8,47.1 32.1,46.1 C34.5,37.4 42.5,31 52,31 C63.2,31 72.3,39.8 72.9,50.8 C79.8,51.6 85,57.4 85,64.5 C85,72 79,72 72,72 Z" />
+    <!-- Electric Play Triangle Cutout / Accent -->
+    <path
+        android:fillColor="#0077FF"
+        android:pathData="M48,46 L65,55.5 L48,65 Z" />
+    <!-- Neon Cyan Signal Dot -->
+    <path
+        android:fillColor="#00E5A3"
+        android:pathData="M40,55.5 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+</vector>
